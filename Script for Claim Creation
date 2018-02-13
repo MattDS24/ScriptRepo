@@ -1,0 +1,160 @@
+//
+// Create a new Claim - Triggered by the AP_CREATE_CLAIM_FROM_INV_APP ETL process which is initiated by the AP invoice form approval process. 
+
+Imports T1.W1.Public
+Imports T1.Tb
+Imports T1.Tb.Data
+Imports T1.Tb.Data.Definition
+Imports System.Data
+
+references T1.W1.Public
+references System.Web.Services
+references System.Data.dll
+references T1.Tb.dll
+references T1.Tb.Data.dll
+
+ 
+Dim ldsBI_Lne as DataSet
+Dim ldrBI_Lne as DataRow
+Dim lsQry as String
+Dim loQry as DBCommand = Nothing
+Dim loData as New DBDataCollection
+
+loQry = DBConnection.CreateCommand("F1", loData)
+
+lsQry = ""
+lsQry = lsQry + "select con_prof, con_nbr, party_prof, party_nbr, sum(claim_amount) as 'claim_amount', claim_status, max(claim_descr) as 'claim_descr',"
+
+lsQry = lsQry + "claim_date, claim_ref, claim_comm, claim_uf1, claim_uf2, claim_uf3, claim_item_compl_status, sum(approved_amount) as 'approved_amount',"
+ 
+lsQry = lsQry + "schd_item_descr, schedule_item_comp_stat, schedule_number, schedule_item_number, variation_number, processed_status"
+
+lsQry = lsQry + " from BIBPA_CLAIM_STAGING group by con_prof, con_nbr, party_prof, party_nbr, claim_status, claim_date, claim_ref, claim_comm, claim_uf1, claim_uf2, claim_uf3, claim_item_compl_status,schd_item_descr, schedule_item_comp_stat, schedule_number, schedule_item_number, variation_number, processed_status "
+
+loQry.CommandText = lsQry
+
+ldsBI_Lne = loQry.ExecuteDataSet()
+
+
+
+//Header line - forms basis of initial claim document
+Dim ldsHdrBI_Lne as DataSet
+Dim ldrHdrBI_Lne as DataRow
+Dim lsHdrQry as String
+Dim loHdrQry as DBCommand = Nothing
+Dim loHdrData as New DBDataCollection
+
+loHdrQry = DBConnection.CreateCommand("F1", loHdrData)
+
+lsHdrQry = ""
+lsHdrQry = lsHdrQry + "select top(1) con_prof, con_nbr, party_prof, party_nbr, claim_status, claim_descr,"
+
+lsHdrQry = lsHdrQry + "claim_date, claim_ref, claim_comm, claim_uf1, claim_uf2, claim_uf3, claim_item_compl_status,"
+ 
+lsHdrQry = lsHdrQry + "schd_item_descr, schedule_item_comp_stat, schedule_number, schedule_item_number, variation_number, processed_status"
+
+lsHdrQry = lsHdrQry + " from BIBPA_CLAIM_STAGING"
+
+loHdrQry.CommandText = lsHdrQry
+
+ldsHdrBI_Lne = loHdrQry.ExecuteDataSet()
+
+
+
+
+ 
+
+
+
+//Need to loop header only once. 
+
+ For Each ldrHdrBI_Lne In ldsHdrBI_Lne.Tables(0).Rows
+
+ 
+   Dim loW1_Services As New W1_Services
+   Dim lorequestClaim_DoCreateRequest As New T1.W1.Public.Claim.Claim_DoCreateRequest
+   With lorequestClaim_DoCreateRequest
+    .Claim = New T1.W1.Public.Claim.ClaimData    // Claim
+     With .Claim
+
+//Claim header details
+   //     .ContractNumberDescription = "Unit Test"                         // System.String - Contract Number Description
+   //     .PartyNumberDescription = "Unit Test"                            // System.String - Party Number Description
+        .ClaimStatus = "I"                                               // System.String - Claim Status:  'I' - InProgress, 'C' - Complete, 'N' - Cancelled
+        .ClaimDescription = left(ldrHdrBI_Lne("CLAIM_DESCR"),39)                      // System.String - Claim Description
+        .ClaimDate = ldrHdrBI_Lne("CLAIM_DATE")                                                  // System.DateTime - Claim Date
+        .ClaimReference = ldrHdrBI_Lne("CLAIM_REF")                               // System.String - Claim Reference
+        .ClaimComments = ldrHdrBI_Lne("CLAIM_COMM")                                                 // System.String - Claim Comments
+        .ContractProfileName = ldrHdrBI_Lne("CON_PROF")                                // System.String - Contract Profile Name
+        .ContractNumber = ldrHdrBI_Lne("CON_NBR")                                         // System.String - Contract Number
+        .PartyProfileName = ldrHdrBI_Lne("PARTY_PROF")                                     // System.String - Party Profile Name
+        .PartyNumber = ldrHdrBI_Lne("PARTY_NBR")                                      //System.String - Party Number
+
+// Claim user fields
+        .ClaimUserfields = New T1.W1.Public.Claim.ClaimUserfields        // Claim Userfields
+         With .ClaimUserfields
+              .Userfield01Alpha = ldrHdrBI_Lne("CLAIM_UF1")                                 // System.String - Userfield01Alpha
+              .Userfield02Date = ldrHdrBI_Lne("CLAIM_UF2")                       // System.DateTime - Userfield01Date
+              .Userfield03Alpha = ldrHdrBI_Lne("CLAIM_UF3")                                 // System.String - Userfield03Alpha
+         End With
+
+
+//Actual claim line details
+       .MilestoneClaimItems = New System.Collections.ArrayList            // Milestone Claim Items { ClaimItem } 
+
+//Iterate over the unique schedule claim items 
+For Each ldrBI_Lne In ldsBI_Lne.Tables(0).Rows
+
+        Dim loClaimItem As New T1.W1.Public.Claim.ClaimItem
+        With loClaimItem
+            .ClaimItemCompletionStatus = "I"                              // System.String - Claim Item Completion Status 
+            .AmountApproved = ldrBI_Lne("CLAIM_AMOUNT")                          // System.Decimal - Amount Approved
+            .OutstandingClaimAmount = 99999999999                      // System.Decimal - Outstanding Claim Amount (Mandatory but no influence on actual outstanding amount in system. simply used as validation tool)
+            .ScheduleItemDescription = "Claim"                        // System.String - Schedule Item Description (Mandatory but again, not appearing anywhere)
+            .ScheduleItemCompletionStatus = "I"                           // System.String - Schedule Item Completion Status
+            .ContractProfileName = ldrBI_Lne("CON_PROF")                     // System.String - Contract Profile Name
+            .ContractNumber = ldrBI_Lne("CON_NBR")                     // System.String - Contract Number
+            .PartyProfileName = ldrBI_Lne("PARTY_PROF")                  // System.String - Party Profile Name
+            .PartyNumber = ldrBI_Lne("PARTY_NBR")                       // System.String - Party Number
+            .ScheduleNumber = ldrBI_Lne("SCHEDULE_NUMBER")                // System.String - Schedule Number
+            .ScheduleItemNumber = ldrBI_Lne("SCHEDULE_ITEM_NUMBER")          // System.String - Schedule Item Number
+            .VariationNumber = ldrBI_Lne("VARIATION_NUMBER")              // System.String - Variation Number
+            .ProcessedStatus = "N"                                        //Mandatory. G = Generated, C = Cancelled, N = Not Processed I = Invoiced, R = Receipted
+        End With
+        .MilestoneClaimItems.Add(loClaimItem)
+ Next
+
+
+    End With
+    .ActionToPerform = "S"                                                // System.String - Action To Perform: 'S' - Suspend, 'SA' - Submit for Approval, 'A' - Approve, 'AP' - Approve and Process
+    .PerformCommit = False                                                // System.Boolean - Perform Commit
+    .ClaimWorkflowSystem = "DEFAULT"                                      // System.String - Claim Workflow System
+    .ClaimWorkflowName = "VS_CON_CLAIM"                               // System.String - Claim Workflow Name
+
+End With
+
+Dim loClaim_DoCreateResponse As T1.W1.Public.Claim.Claim_DoCreateResponse = loW1_Services.Claim_DoCreate(lorequestClaim_DoCreateRequest)
+
+With loClaim_DoCreateResponse
+    Statlog.Write(.ContractProfileName)    // System.String - Contract Profile Name
+    Statlog.Write(.ContractNumber)    // System.String - Contract Number
+    Statlog.Write(.PartyProfileName)    // System.String - Party Profile Name
+    Statlog.Write(.PartyNumber)    // System.String - Party Number
+    Statlog.Write(.ClaimNumber)    // System.Int32 - Claim Number
+    With .Errors    // T1.Tb.Web.WebService.Errors - The error set returned by this operation
+        Statlog.Write(.IsError)    // System.Boolean - A value indicating whether errors have been caught.
+        Statlog.Write(.IsWarning)    // System.Boolean - A value indicating whether warnings have been caught.
+        If .Items IsNot Nothing Then
+            For Each loErrorItem As T1.Tb.Web.WebService.Errors.ErrorItem In .Items    // A collection of errors and warnings that were raised. { ErrorItem } 
+                With loErrorItem
+                    Statlog.Write(.ErrorType)    // System.String - The type of the error.
+                    Statlog.Write(.ErrorCode)    // System.String - The code of the error.
+                    Statlog.Write(.Description)    // System.String - A message describing the error.
+                    Statlog.Write(.ShortDescription)    // System.String - A short message describing the error.
+                End With
+            Next
+        End If
+    End With
+End With
+
+ Next
