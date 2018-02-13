@@ -1,0 +1,40 @@
+// Approve an existing Claim
+
+// UNCOMMENT THE LINE BELOW IF T1.W1.Public IS NOT ALREADY IMPORTED.
+ Imports T1.W1.Public
+
+references T1.W1.Public
+references System.Web.Services
+
+Dim loW1_Services As New W1_Services
+Dim lorequestClaim_DoApproveRequest As New T1.W1.Public.Claim.Claim_DoApproveRequest
+With lorequestClaim_DoApproveRequest
+    .ContractProfileName = "TSY_CLAIM"    // System.String - Contract Profile Name
+    .ContractNumber = "C00865"    // System.String - Contract NumberAAC
+    .PartyProfileName = "12"    // System.String - Party Profile Name
+    .PartyNumber = "100044300"    // System.String - Party Number
+    .ClaimNumber = 1    // System.Int32 - Claim Number
+    .ApprovalAction = "AP"    // System.String - Approval Action: 'SA' - Submit for Approval, 'A' - Approve, 'AP' - Approve and Process
+    .PerformCommit = True    // System.Boolean - Perform Commit
+    .ClaimWorkflowSystem = "DEFAULT"    // System.String - Claim Workflow System
+    .ClaimWorkflowName = "VS_CON_CLAIM"    // System.String - Claim Workflow Name
+ End With
+
+Dim loClaim_DoApproveResponse As T1.W1.Public.Claim.Claim_DoApproveResponse = loW1_Services.Claim_DoApprove(lorequestClaim_DoApproveRequest)
+
+With loClaim_DoApproveResponse
+    With .Errors    // T1.Tb.Web.WebService.Errors - The error set returned by this operation
+        STATLOG.Write(.IsError)    // System.Boolean - A value indicating whether errors have been caught.
+        STATLOG.Write(.IsWarning)    // System.Boolean - A value indicating whether warnings have been caught.
+        If .Items IsNot Nothing Then
+            For Each loErrorItem As T1.Tb.Web.WebService.Errors.ErrorItem In .Items    // A collection of errors and warnings that were raised. { ErrorItem } 
+                With loErrorItem
+                    STATLOG.Write(.ErrorType)    // System.String - The type of the error.
+                    STATLOG.Write(.ErrorCode)    // System.String - The code of the error.
+                    STATLOG.Write(.Description)    // System.String - A message describing the error.
+                    STATLOG.Write(.ShortDescription)    // System.String - A short message describing the error.
+                End With
+            Next
+        End If
+    End With
+End With
