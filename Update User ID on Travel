@@ -1,0 +1,6 @@
+ExecSQL.Begin
+
+update F1ETL_EXP_DOC set USER_ID = 'NEWUSER' where EXP_DOC_NBR = 'REQNO'
+
+ExecSQL.End
+ExecSQL.Commit
